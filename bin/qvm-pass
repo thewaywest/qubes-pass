@@ -5,13 +5,14 @@ set -e
 usage() {
     echo "qvm-pass usage:"
     echo ""
-    echo "    qvm-pass [-d <passvm>] <subcommand> [arguments...]"
+    echo "    qvm-pass [-d <passvm>] [<subcommand>] [arguments...]"
     echo ""
     echo "subcommands:"
     echo ""
     echo "    list"
     echo "        Retrieves the list of keys from the pass store."
     echo "        No subcommand accomplishes the same results"
+    echo ""
     echo "    get <key>"
     echo "        Retrieves a key from the pass store."
     echo "        If your key is not named after a subcommand, you can also"
@@ -35,49 +36,89 @@ usage() {
     echo "        optionally forcefully."
 }
 
-force=0
-multiline=0
-echo=0
-nosymbols=0
+option(map) {
+    [ {$map:0:1} == "1" ] && return "--domain";
+    [ {$map:0:1} == "1" ] && return "--echo";
+    [ {$map:0:1} == "1" ] && return "--force";
+    [ {$map:0:1} == "1" ] && return "--help";
+    [ {$map:0:1} == "1" ] && return "--multiline";
+    [ {$map:0:1} == "1" ] && return "--nosymbols";
+    [ {$map:0:1} == "1" ] && return "--passphrase";
+    [ {$map:0:1} == "1" ] && return "--totp";
+}
 
-TEMP=`getopt -o d:nmfe? -- "$@"` || { usage ; exit 64 ; }
-eval set -- "$TEMP"
+# defaults
+echo=0
+force=0
+key1=
+key2=
+multiline=0
+nosymbols=0
+passphrase=0
+totp=0
+
+# process command line options
+OPT_ABBR=d:efhmnp::t
+OPT_LONG=domain:,echo,force,help,multiline,nosymbols,passphrase::,totp
+
+OPTS=`getopt -o $OPT_ABBR -l $OPT_LONG -- "$@"` || { usage ; exit 64 ; }
+eval set -- "$OPTS"
 
 while true ; do
     case "$1" in
-        -d)
+        --domain | -d)
             case "$2" in
                 "") shift 2 ;;
                 *) export QUBES_PASS_DOMAIN="$2" ; shift 2 ;;
             esac ;;
-        -n)
-            nosymbols=1 ; shift ;;
-        -m)
-            multiline=1 ; shift ;;
-        -f)
-            force=1 ; shift ;;
-        -e)
+
+        --echo | -e)
             echo=1 ; shift ;;
+
+        --force | -f)
+            force=1 ; shift ;;
+
+        --help | -h)
+            usage ; exit ;;
+
+        --multiline | -m)
+            multiline=1 ; shift ;;
+
+        --nosymbols | -n)
+            nosymbols=1 ; shift ;;
+
+        --passphrase | -p)
+            if [[ $2 =~ ?(-) ]]; then
+                passphrase=$2
+                shift 2 ;
+            else
+                passphrase=6
+                shift ;
+            fi ;;
+
+        --totp | -t)
+            totp=1 ; shift ;;
+
         --)
             shift ; break ;;
+
+        *)
+            if [[ $key1 == "" ]]; then
+                key1=$1
+                shift;
+            else
+                key2=$1
+                shift;
+            fi ;;
     esac
 done
 
+hasoptions=$("$force$multiline$echo$nosymbols$passphrase$totp" != "000000")
+
 case "$1" in
-    get|get-or-generate)
-        if [ "$force$multiline$echo" != "000" ] ; then
-            echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
-        fi
-        if [ -z "$2" ] ; then
-            echo "the $1 subcommand requires a key; run with -? for more information" >&2 ; exit 64 
-        fi
-        if [ -n "$3" ] ; then
-            echo "the $1 subcommand only accepts one argument; run with -? for more information" >&2 ; exit 64
-        fi
-        exec qubes-pass-client "$1" "$2" "$nosymbols"
-        ;;
+    # initialize a new password store (skips if already configured)
     init)
-        if [ "$force$multiline$echo$nosymbols" != "0000" ] ; then
+        if [ $hasoptions ] ; then
             echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
         fi
         if [ -n "$2" ] ; then
@@ -85,15 +126,31 @@ case "$1" in
         fi
         exec qubes-pass-client "$1"
         ;;
-    rm)
-        if [ "$force$multiline$echo$nosymbols" != "0000" ] ; then
-            echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
+
+    # get or get+create a security key
+    get | get-or-generate)
+        if [ "$force$multiline$echo" != "000" ]] ; then
+            echo "the $1 subcommand does not accept that option; run with -h for more information" >&2 ; exit 64
         fi
-        if [ -z "$2" ] ; then
-            echo "the $1 subcommand requires a key; run with -? for more information" >&2 ; exit 64 
+        if [ -z "$key1" ] ; then
+            echo "the $1 subcommand requires a key; run with -h for more information" >&2 ; exit 64 
+        fi
+        if [ -n "$3" ] ; then
+            echo "the $1 subcommand only accepts one argument; run with -h for more information" >&2 ; exit 64
+        fi
+        exec qubes-pass-client "$1" "$2" "$nosymbols" "$passphrase" "$totp"
+        ;;
+
+    rm)
+        if [ $hasoptions ] ; then
+            echo "the $1 subcommand does not accept that option" >&2 ; exit 64
+        fi
+        if [ -z "$key1" ] ; then
+            echo "the $1 subcommand requires a pass key" >&2 ; exit 64 
         fi
         exec qubes-pass-client "$1" "$2"
         ;;
+
     mv)
         if [ "$multiline$echo$nosymbols" != "000" ] ; then
             echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
@@ -103,6 +160,7 @@ case "$1" in
         fi
         exec qubes-pass-client "$1" "$2" "$3" "$force"
         ;;
+
     cp)
         if [ "$multiline$echo$nosymbols" != "000" ] ; then
             echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
@@ -112,6 +170,7 @@ case "$1" in
         fi
         exec qubes-pass-client "$1" "$2" "$3" "$force"
         ;;
+
     insert)
         if [ "$nosymbols" != "0" ] ; then
             echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
@@ -151,16 +210,18 @@ case "$1" in
 
         exec qubes-pass-client insert "$1" "$multiline" "$contents"
         ;;
+
     list)
         if [ "$force$multiline$echo$nosymbols" != "0000" ] ; then
             echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
         fi
-        exec qubes-pass-client list
+        exec qubes-pass-client list "$key1"
         ;;
+        
     *)
         if [ "$force$multiline$echo$nosymbols" != "0000" ] ; then
             echo "the get subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
         fi
-        exec qubes-pass-client get "$1"
+        exec qubes-pass-client get "$key1"
         ;;
 esac
