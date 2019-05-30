@@ -1,18 +1,25 @@
 #!/bin/bash
 
+# ruddo.PassManage
+# this routine 
+
 set -e
 
+# decode requested command
 read -n 4096 cmd
 cmd=$(echo "$cmd" | base64 -d)
 
+# initialize a new repository (ignore if already configureds)
 if [ "$cmd" == "init" ] ; then
 
+  # if already configured, exit
   if test -f "$HOME"/.password-store/.gpg-id ; then
       key=$(cat "$HOME"/.password-store/.gpg-id)
       echo "Not creating  password store already exists and uses GPG key $key." >&2
       exit 8
   fi
   
+  # generate a gpg key for the new repository
   tmp=$(mktemp)
   trap 'rm -f "$tmp"' EXIT
   cat > "$tmp" <<EOF
@@ -28,41 +35,56 @@ EOF
       exit "$ret"
   fi
   
+  # notify user and provide beginner's instructions
   key=$(echo "$out" | awk '/gpg: key .* marked as ultimately trusted/ { print $3 }')
   pass init "$key"
   echo "Do not forget to back up your password store regularly." >&2
   echo "To back up your password store, back up the entire $HOSTNAME VM using Qubes backup." >&2
   echo "Key files to backup: $HOME/.password-store and $HOME/.gnupg2" >&2
 
+# get an exiting key or generate a new one if not found
 elif [ "$cmd" == "get-or-generate" ] ; then
-
   read -n 4096 entry
   read -n 4096 nosymbols
+  read -n 4096 passphrase
+  read -n 4096 totp
   entry=$(echo "$entry" | base64 -d)
   nosymbols=$(echo "$nosymbols" | base64 -d)
+  passphrase=$(echo "$passphrase" | base64 -d)
+  totp=$(echo "$totp" | base64 -d)
 
+  # query pass key
   ret=0 ; out=$(pass -- "$entry" 2>&1) || ret=$?
+
+  # create new key where one does not exist
   if [ "$ret" == "1" ] && echo "$out" | grep -q "not in the password store" ; then
         logger -t ruddo.PassManage "creating password entry $entry"
         ret=0
-        if [ "$nosymbols" == "1" ] ; then
+
+        if [ "passphrase" != "0" ] ; then
+            out=$(passphraseme $passphrase) || ret=$?
+        elif [ "$nosymbols" == "1" ] ; then
             out=$(pass generate -n -- "$entry" 32) || ret=$?
         else
             out=$(pass generate -- "$entry" 32) || ret=$?
         fi
+
         if [ "$ret" == "1" ] ; then
             echo "Password generation failed: $out"
             exit "$ret"
         fi
+
+  # if key exists, return contents
   elif [ "$ret" != "0" ] ; then
         echo "$out" >&2
         exit "$ret"
   fi
+  
   logger -t ruddo.PassManage "requested password entry $entry"
   exec pass -- "$entry"
 
+# insert a new entry
 elif [ "$cmd" == "insert" ] ; then
-
   read -n 4096 entry
   read -n 4096 multiline
   read -n 1048576 contents
@@ -78,8 +100,8 @@ elif [ "$cmd" == "insert" ] ; then
       echo "$contents" | base64 -d | pass insert -e --force -- "$entry"
   fi
 
+# delete an entry
 elif [ "$cmd" == "rm" ] ; then
-
   read -n 4096 entry
   entry=$(echo "$entry" | base64 -d)
 
@@ -87,18 +109,17 @@ elif [ "$cmd" == "rm" ] ; then
 
   pass rm -- "$entry"
 
+# copy or move an entry
 elif [ "$cmd" == "mv" -o "$cmd" == "cp" ] ; then
-
   read -n 4096 entry
-  entry=$(echo "$entry" | base64 -d)
   read -n 4096 newentry
-  newentry=$(echo "$newentry" | base64 -d)
   read -n 4096 force
+  entry=$(echo "$entry" | base64 -d)
+  newentry=$(echo "$newentry" | base64 -d)
   force=$(echo "$force" | base64 -d)
+
   if [ "$force" == "1" ] ; then
-      force=-f
-  else
-      force=
+      cmd=$cmd + " -f"
   fi
 
   logger -t ruddo.PassManage "$cmd password entry $entry to $entry"

@@ -3,63 +3,253 @@
 set -e
 
 usage() {
-    echo "qvm-pass usage:"
-    echo ""
-    echo "    qvm-pass [-d <passvm>] [<subcommand>] [arguments...]"
-    echo ""
-    echo "subcommands:"
-    echo ""
-    echo "    list"
-    echo "        Retrieves the list of keys from the pass store."
-    echo "        No subcommand accomplishes the same results"
-    echo ""
-    echo "    get <key>"
-    echo "        Retrieves a key from the pass store."
-    echo "        If your key is not named after a subcommand, you can also"
-    echo "        get its contents by passing it as the first argument of"
-    echo "        this command, omitting the get subcommand."
-    echo "    get-or-generate [-n] <key>"
-    echo "        Retrieves a key from the pass store; creates the key"
-    echo "        with 32 characters length if it does not exist yet,"
-    echo "        and returns the generated key on standard output."
-    echo "        The -n option excludes symbols from being used"
-    echo "        during password generation."
-    echo "    insert [--echo,-e | --multiline,-m] [--force,-f]  <key>"
-    echo "        Creates a key in the pass store."
-    echo "    rm <key>"
-    echo "        Removes a key from the pass store."
-    echo "    cp [-f] <key> <newkey>"
-    echo "        Copies a key to another key in the pass store,"
-    echo "        optionally forcefully."
-    echo "    mv [-f] <key> <newkey>"
-    echo "        Moves a key to another key in the pass store,"
-    echo "        optionally forcefully."
-}
+    case "$cmd" in
+    
+        list)
+            echo ""
+            echo "    qvm-pass list [<subdirectory>]"
+            echo ""
+            echo "    Retrieves the list of keys from the pass store. Adding a"
+            echo "    subdirectory key will list contents of that folder only."
+            echo ""
+            echo "    eg: qvm-pass list                 complete password directory"
+            echo "        qvm-pass list client/mail     list the client/mail subdir"
+            echo "" ;;
 
-option(map) {
-    [ {$map:0:1} == "1" ] && return "--domain";
-    [ {$map:0:1} == "1" ] && return "--echo";
-    [ {$map:0:1} == "1" ] && return "--force";
-    [ {$map:0:1} == "1" ] && return "--help";
-    [ {$map:0:1} == "1" ] && return "--multiline";
-    [ {$map:0:1} == "1" ] && return "--nosymbols";
-    [ {$map:0:1} == "1" ] && return "--passphrase";
-    [ {$map:0:1} == "1" ] && return "--totp";
+        get)
+            echo ""
+            echo "    qvm-pass [get] [--fill,-f | --show,-s ] [--otp,-o] [--user,-u] <key>"
+            echo ""
+            echo "    Retrieves a key from the pass store. Passing a key as the"
+            echo "    only argument for qvm-pass performs a 'get' for that key."
+            echo "    By default, the password is copied to the app vm clipboard."
+            echo ""
+            echo "    eg: qvm-pass get mail/gmail           copy the gmail pwd"
+            echo "        qvm-pass -fill mail/work          insert the work pwd"
+            echo "        qvm-pass -f -u mail/work          insert work uid/pwd"
+            echo "        qvm-pass -s mail/work             show the work entry"
+            echo "        qvm-pass -f -o mail/work          insert the work otp"
+            echo "" ;;
+
+        get-or-generate | getg)
+            echo ""
+            echo "    qvm-pass get-or-generate [--phrase[=x],-p[x] | --nosymbols,-n]"
+            echo "          [--fill,-f | --show,-s ] [--otp,-o] [--user,-u] <key>"
+            echo ""
+            echo "    Retrieves a key from the pass store or creates the key if it doesn't"
+            echo "    exist. Creation arguments -p and -n, and read argument -f -s -o -u are"
+            echo "    processed according to global rules. See qvm-pass --help for details."
+            echo ""
+            echo "    eg: qvm-pass get-or-generate mail/gmail   gen 32-char pwd to clipboard"
+            echo "        qvm-pass getg -n mail/work            gen alpha pwd to clipboard"
+            echo "        qvm-pass getg -p8 mail/work           create an 8-word passphrase"
+            echo "        qvm-pass getg -p -f -u mail/work      gen 6-word phrase to cursor"
+            echo "" ;;
+        
+        insert | ins)
+            echo ""
+            echo "    insert [--echo,-e | --multiline,-m] [--force] <key>"
+            echo ""
+            echo "    Creates a key in the pass store; warns if the key already"
+            echo "    exists. Also takes the get-or-generate password options."
+            echo ""
+            echo "    eg: qvm-pass insert mail/gmail2       create gmail2 key"
+            echo "        qvm-pass ins -m mail/gmail2       create multiline key"
+            echo "        qvm-pass ins -m -p7 newkey        with 7-wd passphrase"
+            echo "" ;;
+
+        remove | rm)
+            echo ""
+            echo "    remove [--force] [--silent,-s] <key>"
+            echo ""
+            echo "    Removes a key from the pass store. If key found, a confirm"
+            echo "    dialog will request an ok to delete the file; if the key is"
+            echo "    not found, a warning dialog will be displayed."
+            echo ""
+            echo "    The --force option takes precedence, and will remove the file"
+            echo "    without asking; --silent will not remove the file if found."
+            echo ""
+            echo "    eg: qvm-pass remove mail/gmail    remove the gmail entry"
+            echo "        qvm-pass rm --force newkey    remove without confirming"
+            echo "        qvm-pass rm -s mail/gmail     ignore not found warning"
+            echo "" ;;
+
+        copy | cp)
+            echo ""
+            echo "    copy [--force] [--silent,-s] <key> <newkey>"
+            echo ""
+            echo "    Copies a key to another key in the pass store. Similar to"
+            echo "    the remove subcommand, but requires a destination key."
+            echo ""
+            echo "    eg: qvm-pass copy oldkey newkey   copies oldkey to newkey"
+            echo "        qvm-pass cp --force old new   force the copy to occur"
+            echo "        qvm-pass cp -s oldkey newkey  ignore not found warning"
+            echo "" ;;
+
+        move | mv)
+            echo "    move [--force] [--silent,-s] <key> <newkey>"
+            echo ""
+            echo "    Moves a key to another key in the pass store. similar to"
+            echo "    the copy subcommand."
+            echo ""
+            echo "    eg: qvm-pass move oldkey newkey   moves oldkey to newkey"
+            echo "        qvm-pass mv --force old new   force the move to occur"
+            echo "        qvm-pass mv -s oldkey newkey  ignore not found warning"
+            echo "" ;;
+
+        *)
+            echo ""
+            echo "qvm-pass usage:"
+            echo ""
+            echo "    qvm-pass [<subcommand>] [arguments...]"
+            echo ""
+            echo "    eg: qvm-pass my-key            send my-key password to the clipboard"
+            echo "        qvm-pass -d pass2 my-key   get a key from an alternate pass domain"
+            echo "        qvm-pass -f -u my-key      fill both username and password fields"
+            echo "        qvm-pass -f -o my-key      fill current field with a generated OTP"
+            echo "        qvm-pass getg -m -s key2   get or create 'key2' and display content"
+            echo "        qvm-pass list mail         list all entries from the 'mail' folder"
+            echo "        qvm-pass ins -m -n key2    create a new key with 32-char alpha pwd"
+            echo ""
+            echo ""
+            echo "Subcommands"
+            echo ""
+            echo "  Subcommands send different instructions to the pass subsystem, reading"
+            echo "  and directing, or managing secured data. If no subcommand is issued, the"
+            echo "  qvm-pass command will issue a 'get' using the key that has been provided."
+            echo ""
+            echo "    list                    list pass entries, optionally for a subfolder"
+            echo "    get (or no subcommand)  send key to cursor pos, clipboard or dialog"
+            echo "    get-or-generate (gitg)  get a key or create it if it doesn't exzist"
+            echo "    insert (ins)            create a new key, optionally using an editor"
+            echo "    remove (rm)             remove an existing key, optionally with force"
+            echo "    copy (cp)               clone an existing key to a new folder/name"
+            echo "    move (mv)               move an existing key to a new folder/name"
+            echo ""
+            echo "  Subcommands can take a variety of arguments, listed below. Many also take"
+            echo "  an abbreviation, shown in parentheses. For more information and examples"
+            echo "  for specific subcommands type:, gvm-pass <subcommand> --help"
+            echo ""
+            echo ""
+            echo "Arguments"
+            echo ""
+            echo "  Arguments modify basic actions by configuring input, directing output"
+            echo "  and managing your pass files and folders. Individual subcommands will use"
+            echo "  a subset of the available arguments:"
+            echo ""
+            echo "  --domain (-d) <passvm>  override the configured passvm domain"
+            echo "  --echo (-e)             applies the pass command's --echo option"
+            echo "  --fill (-f)             insert <password><tab> at cursor position"
+            echo "  --force                 applies the pass command's --force option"
+            echo "  --help (-h)             display this command documention"
+            echo "  --multiline (-m)        uses multiline dialog to create and entry"
+            echo "  --nosymbols (-n)        restrict new passwords to alphanumeric"
+            echo "  --otp (-o)              returns an otp key if OTP: <secret> exists"
+            echo "  --phrase[=x] (-p[x])    generate a diceware passphrase for the pwd"
+            echo "  --show (-s)             display the entire record in a dialog box"
+            echo "  --silent (-z)           silence confirmation and warning dialogs"
+            echo "  --user (-u)             insert <username><tab> before <password>"
+            echo ""
+            echo "  argument details:"
+            echo ""
+            echo "  --domain    The domain key is defined in the QUBES_PASS_DOMAIN env"
+            echo "              variable on each pass client vm. You can use this arg"
+            echo "              to point at a secondary pass proxy vm (for multiuser,"
+            echo "              or split security for multiple business clients)."
+            echo ""
+            echo "  --fill      Parse the returned pass record for password (the first"
+            echo "              line of the record and (optionally) Username:, wherever"
+            echo "              it exists in the text. Combine this argument with --user"
+            echo "              or --otp options to fill with other results."
+            echo ""
+            echo "  --multiline The default pass multiline editor. The password will be"
+            echo "              generated and entered in the first line; use the --pass"
+            echo "              or the --nosymbols options to determine its format."
+            echo ""
+            echo "              You can save default content (eg Username:me@email.com,"
+            echo "              or placeholders for URL:, OTP:, etc) by exporting a new"
+            echo "              multiline QUBES_PASS_CONTENT environment variable. For"
+            echo "              persistence, save the export in .bashrc or .profile."
+            echo ""
+            echo "  --otp       When present, look for the (case insensitive) OTP: line"
+            echo "              in the pass record. If it exists and contains an otp"
+            echo "              secret, use oathtool to copy or fill the otp value."
+            echo ""
+            echo "  --phrase    By default, 32-character passwords are generated using"
+            echo "              the pass generate command. 'Diceware' passphrases create"
+            echo "              simpler, more secure passwords. A 6-word phrase is the"
+            echo "              default; you can specify the number of words by appending"
+            echo "              a number."
+            echo ""
+            echo "              eg: --phrase=7  create a 7-word (high-security) phrase"
+            echo "                  -p4         a memorable 4-word phrase (low-security)"
+            echo ""
+            echo "  --silent    Some commands will confirm changes or send warnings. To"
+            echo "              simplify scripting, such warnings can be ignored. The"
+            echo "              resulting action depends on the subcommand being run."
+            echo ""
+            echo "  --user      Used in combination with the --fill option, the pass"
+            echo "              record is parsed for a (case-insensitive) USERNAME: line."
+            echo "              If a value exists, the fill will be:"
+            echo ""
+            echo "                  <username><tab><password><tab>"
+            echo ""
+            echo "              If the username key is missing or the content is blank,"
+            echo "              'NO USERNAME' will be inserted at the cursor position."
+            echo "" ;;
+    esac
+    exit 0
 }
 
 # defaults
+cmd=$1  # if optional [get], this will be a key
 echo=0
+fill=0
 force=0
-key1=
-key2=
+key=
+new=
 multiline=0
 nosymbols=0
+otp=0
 passphrase=0
-totp=0
+show=0
+silent=0
+username=0
+
+# return options not allowed for a given action
+ARGS=(echo fill force multiline nosymbols otp phrase show silent user) # display map of arguments
+disallow() {
+    sel="$echo$fill$force$multiline$nosymbols$otp$phrase$show$silent$user" # current selection
+    map="$10000000000" # validation map; add padding to cover bad requests
+    err= # error results
+
+    # step through options, throwing an error if selected option maps to a 'cannot exist' flag
+    for (( i=0; i<${#sel}; i++ )); do
+        [ {$sel:$i:1} == {$map:$i:1} ] && err=$("$err--${ARGS[$i]} ")
+    done
+
+    if [ ! -z $err ]; then
+        echo "
+The '$cmd' subcommand does not accept the following:
+
+    $err
+
+Run 'qvm-pass $cmd --help' for more information
+" >&2 ; exit 64
+    fi
+}
+
+# error helper
+fail() {
+    msg=$1
+    echo "
+The '$cmd' subcommand $msg; run 'qvm-pass $cmd --help' for more information
+" >&2 ; exit 64
+}
 
 # process command line options
-OPT_ABBR=d:efhmnp::t
-OPT_LONG=domain:,echo,force,help,multiline,nosymbols,passphrase::,totp
+OPT_ABBR=d:efhmnop::suz
+OPT_LONG=domain:,echo,fill,force,help,multiline,nosymbols,otp,passphrase::,show,username,silent
 
 OPTS=`getopt -o $OPT_ABBR -l $OPT_LONG -- "$@"` || { usage ; exit 64 ; }
 eval set -- "$OPTS"
@@ -67,19 +257,20 @@ eval set -- "$OPTS"
 while true ; do
     case "$1" in
         --domain | -d)
-            case "$2" in
-                "") shift 2 ;;
-                *) export QUBES_PASS_DOMAIN="$2" ; shift 2 ;;
-            esac ;;
+            [ -z $2 ] && fail "requires a vm qube domain name" ;
+            export QUBES_PASS_DOMAIN="$2" ; shift 2 ;;
 
-        --echo | -e)
+        --echo | -e) 
             echo=1 ; shift ;;
+
+        --fill | -f)
+            fill=1 ; shift ;;
 
         --force | -f)
             force=1 ; shift ;;
 
         --help | -h)
-            usage ; exit ;;
+            help=1 ; shift ;;
 
         --multiline | -m)
             multiline=1 ; shift ;;
@@ -87,101 +278,101 @@ while true ; do
         --nosymbols | -n)
             nosymbols=1 ; shift ;;
 
-        --passphrase | -p)
-            if [[ $2 =~ ?(-) ]]; then
+        --phrase | -p)
+            if [[ $2 =~ ?(-) ]]; then # wordcount supplied
                 passphrase=$2
                 shift 2 ;
             else
-                passphrase=6
+                passphrase=6 # default passphrase wordcount
                 shift ;
             fi ;;
 
-        --totp | -t)
-            totp=1 ; shift ;;
+        --otp | -o)
+            otp=1 ; shift ;;
+
+        --show | -s)
+            show=1 ; shift ;;
+
+        --silent | -z)
+            silent=1 ; shift ;;
 
         --)
             shift ; break ;;
 
         *)
-            if [[ $key1 == "" ]]; then
-                key1=$1
+            if [[ $key == "" ]]; then
+                key=$1
                 shift;
             else
-                key2=$1
+                new=$1
                 shift;
             fi ;;
     esac
 done
 
-hasoptions=$("$force$multiline$echo$nosymbols$passphrase$totp" != "000000")
+# execute actions
+case "$cmd" in
 
-case "$1" in
     # initialize a new password store (skips if already configured)
     init)
-        if [ $hasoptions ] ; then
-            echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
-        fi
-        if [ -n "$2" ] ; then
-            echo "the $1 subcommand does not accept any arguments; run with -? for more information" >&2 ; exit 64
-        fi
-        exec qubes-pass-client "$1"
+        [ "$help" == "1" ] && usage
+        disallowed "1111111111"
+        [ -n "$2" ] && fail "takes no arguments"
+        exec qubes-pass-client init
         ;;
 
-    # get or get+create a security key
-    get | get-or-generate)
-        if [ "$force$multiline$echo" != "000" ]] ; then
-            echo "the $1 subcommand does not accept that option; run with -h for more information" >&2 ; exit 64
-        fi
-        if [ -z "$key1" ] ; then
-            echo "the $1 subcommand requires a key; run with -h for more information" >&2 ; exit 64 
-        fi
+    # get or create a security key
+    get-or-generate | get-or-gen)
+        [ "$help" == "1" ] && usage
+        disallow "0000000000"
+        [ -z "$key" ] fail "requires a key"
         if [ -n "$3" ] ; then
             echo "the $1 subcommand only accepts one argument; run with -h for more information" >&2 ; exit 64
         fi
-        exec qubes-pass-client "$1" "$2" "$nosymbols" "$passphrase" "$totp"
+        exec qubes-pass-client get-or-generate "$key" "$nosymbols" "$passphrase" "$otp"
         ;;
 
-    rm)
+    remove | rm)
+        [ "$help" == "1" ] && usage
+        disallow ""
         if [ $hasoptions ] ; then
             echo "the $1 subcommand does not accept that option" >&2 ; exit 64
         fi
         if [ -z "$key1" ] ; then
             echo "the $1 subcommand requires a pass key" >&2 ; exit 64 
         fi
-        exec qubes-pass-client "$1" "$2"
+        exec qubes-pass-client remove "$key"
         ;;
 
-    mv)
+    move | mv)
+        [ "$help" == "1" ] && usage
+        disallow ""
         if [ "$multiline$echo$nosymbols" != "000" ] ; then
             echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
         fi
-        if [ -z "$2" -o -z "$3" ] ; then
+        if [ -z "$key" -o -z "$newkey" ] ; then
             echo "the $1 subcommand requires two keys; run with -? for more information" >&2 ; exit 64
         fi
-        exec qubes-pass-client "$1" "$2" "$3" "$force"
+        exec qubes-pass-client move "$key" "$new" "$force"
         ;;
 
-    cp)
-        if [ "$multiline$echo$nosymbols" != "000" ] ; then
-            echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
-        fi
-        if [ -z "$2" -o -z "$3" ] ; then
-            echo "the $1 subcommand requires two keys; run with -? for more information" >&2 ; exit 64
-        fi
-        exec qubes-pass-client "$1" "$2" "$3" "$force"
+    copy | cp)
+        [ "$help" == "1" ] && usage
+        disallow ""
+        [ -z "$key" -o -z "$new" ] && fail "requires source and target keys"
+        exec qubes-pass-client copy "$key" "$new" "$force"
         ;;
 
-    insert)
-        if [ "$nosymbols" != "0" ] ; then
-            echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
-        fi
+    insert | ins)
+        [ "$help" == "1" ] && usage
+        disallow ""
         shift
 
         if [ "$force" != "1" ] ; then
             ret=0 ; errs=$(qubes-pass-client get "$1" >/dev/null 2>&1) || ret=$?
             if [ "$ret" == "0" ] ; then
-                read -p "An entry already exists for $1. Overwrite it? [y/N] " response
-                if [ "$response" != "y" ] ; then exit 0 ; fi
+                read -p "An entry already exists for $1. Overwrite it? [y/N] " rsp
+                if [ "$rsp" != "y" ] ; then exit 0 ; fi
             elif [ "$ret" == "8" ] ; then
                 true
             else
@@ -212,16 +403,19 @@ case "$1" in
         ;;
 
     list)
-        if [ "$force$multiline$echo$nosymbols" != "0000" ] ; then
-            echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
-        fi
-        exec qubes-pass-client list "$key1"
+        [ "$help" == "1" ] && usage
+        disallow "1111111111"
+        exec qubes-pass-client list "$key"
         ;;
-        
+
+    # get a security key
     *)
-        if [ "$force$multiline$echo$nosymbols" != "0000" ] ; then
-            echo "the get subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
-        fi
-        exec qubes-pass-client get "$key1"
+        [[ "$help" = "1" && -z "$key" ]] && usage # general help requested
+        cmd="get" # if no command entered, $1 will be a pass key
+        [ "$help" == "1" ] && usage # key exists, 'get' help requested
+        disallow "10111101010"
+        [ -z "$key" ] && fail "requires a key"
+
+        exec qubes-pass-client get "$key" "$fill" "$show" "$otp" "$user"
         ;;
 esac
