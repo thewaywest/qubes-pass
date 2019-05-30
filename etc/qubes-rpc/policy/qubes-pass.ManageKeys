@@ -1,0 +1,13 @@
+## qubes-pass.ReadKeys
+##
+## Describe access rules between qubes-pass client vms and
+## qubes-pass server vms. By default, service requests are
+## always blocked ("deny"). Grant gated access ("ask") or
+## free access ("allow") to certain qubes with new lines.
+
+## Note that policy parsing stops at the first match,
+## so anything below "$anyvm $anyvm" will have no effect.
+
+## Please use a single # to start your custom comments.
+
+$anyvm $anyvm deny

@@ -1,7 +1,21 @@
 #!/bin/bash
 
-# ruddo.PassManage
-# this routine 
+usage() {
+  echo ""
+  echo "  qubes-pass.ManageKeys <command> [<arguments>]"
+  echo ""
+  echo "  Process commands and arguments for the 'pass' password manager on a"
+  echo "  pass vm. This command is rarely accessed directly; it is called via"
+  echo "  the qubes-rpc scripts installed on any app vm that calls qubes-pass."
+  echo ""
+  echo "  The actions handled in ManageKeys are called separately from those in"
+  echo "  the ReadKeys file, allowing separation of access for multiple users"
+  echo "  and roles."
+  echo ""
+  echo "  Access to pass service qubes is maintained in qubes-pass.ManageKeys,"
+  echo "  located in the /etc/qubes-rpc directory of Dom0"
+  echo ""
+}
 
 set -e
 
@@ -47,7 +61,7 @@ elif [ "$cmd" == "get-or-generate" ] ; then
   read -n 4096 entry
   read -n 4096 nosymbols
   read -n 4096 passphrase
-  read -n 4096 totp
+  read -n 4096 otp
   entry=$(echo "$entry" | base64 -d)
   nosymbols=$(echo "$nosymbols" | base64 -d)
   passphrase=$(echo "$passphrase" | base64 -d)
