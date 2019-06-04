@@ -5,6 +5,7 @@ set -e
 if [ -s /rw/config/pass-split-domain -a -z "$QUBES_PASS_DOMAIN" ] ; then
     export QUBES_PASS_DOMAIN=$( cat /rw/config/pass-split-domain )
 fi
+
 if [ -z "$QUBES_PASS_DOMAIN" ] ; then
     title="Qubes pass error"
     msg="The QUBES_PASS_DOMAIN variable is not defined.  Either create /rw/config/pass-split-domain with the VM containing your pass setup, set the environment variable yourself, or pass -d on the command line."
@@ -13,25 +14,42 @@ if [ -z "$QUBES_PASS_DOMAIN" ] ; then
     exit 124
 fi
 
-# request to initialize repository 
+# command must exist
+if [ -z "$cmd" ]; then
+
+fi
+cmd=$(echo "$1" | base64 -w 0)
+
+# process command
+case "$1" in
+
+    init) 
+        echo "$cmd" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" qubes-pass.ManageKeys ;;
+
+    list) 
+        echo "$cmd" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" qubes-pass.ManageKeys ;;
+
+    get)
+        key=$(echo "$2" | base64 -w 0)
+        echo "$cmd
+$key" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" qubes-pass.ReadKeys
+
+esac
+
 if [ "$1" == "init" ] ; then
 
-    cmd=$(echo "$1" | base64 -w 0)
-    echo "$cmd" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" ruddo.PassManage
+
 
 # list current contents of repository
 elif [ "$1" == "list" ] ; then
 
     cmd=$(echo "$1" | base64 -w 0)
-    echo "$cmd" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" ruddo.PassRead
 
 # get an entry from the repository
 elif [ "$1" == "get" ] ; then
 
     cmd=$(echo "$1" | base64 -w 0)
-    key=$(echo "$2" | base64 -w 0)
-    echo "$cmd
-$key" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" ruddo.PassRead
+
 
 # get existing or generate new entry
 elif [ "$1" == "get-or-generate" ] ; then

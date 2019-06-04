@@ -33,8 +33,10 @@ usage() {
 
         get-or-generate | getg)
             echo ""
-            echo "    qvm-pass get-or-generate [--phrase[=x],-p[x] | --nosymbols,-n]"
-            echo "          [--fill,-f | --show,-s ] [--otp,-o] [--user,-u] <key>"
+            echo "    qvm-pass get-or-generate"
+            echo "          [--phrase[=x],-p[x] | --nosymbols,-n] [--inplace,-i]"
+            echo "          [--fill,-f | --show,-s ] [--otp,-o] [--user,-u]"
+            echo "          <key>"
             echo ""
             echo "    Retrieves a key from the pass store or creates the key if it doesn't"
             echo "    exist. Creation arguments -p and -n, and read argument -f -s -o -u are"
@@ -134,6 +136,7 @@ usage() {
             echo "  --fill (-f)             insert <password><tab> at cursor position"
             echo "  --force                 applies the pass command's --force option"
             echo "  --help (-h)             display this command documention"
+            echo "  --inplace (-i)          replace current password with the new one"
             echo "  --multiline (-m)        uses multiline dialog to create and entry"
             echo "  --nosymbols (-n)        restrict new passwords to alphanumeric"
             echo "  --otp (-o)              returns an otp key if OTP: <secret> exists"
@@ -205,10 +208,12 @@ usage() {
 }
 
 # defaults
-cmd=$1  # if optional [get], this will be a key
-echo=0
-fill=0
+cmd=$1      # if optional [get], this will be a key
+contents=   # contents for a multiline inserted key
+echo=0      #
+fill=0      
 force=0
+inplace=0   # replace existing password with new one (adds current to history)
 key=
 new=
 multiline=0
@@ -219,7 +224,7 @@ show=0
 silent=0
 username=0
 
-# return options not allowed for a given action
+# return for options not allowed for a given action
 ARGS=(echo fill force multiline nosymbols otp phrase show silent user) # display map of arguments
 disallow() {
     sel="$echo$fill$force$multiline$nosymbols$otp$phrase$show$silent$user" # current selection
@@ -316,65 +321,67 @@ done
 # execute actions
 case "$cmd" in
 
-    # initialize a new password store (skips if already configured)
-    init)
-        [ "$help" == "1" ] && usage
-        disallowed "1111111111"
-        [ -n "$2" ] && fail "takes no arguments"
-        exec qubes-pass-client init
-        ;;
+    init) # initialize a new password store (skips if already configured)
 
-    # get or create a security key
-    get-or-generate | get-or-gen)
+        # validate request
+        [ "$help" == "1" ] && usage
+        disallow "1111111111"
+        [ -n "$2" ] && fail "takes no arguments"
+
+        # call action
+        echo "$(echo "$cmd" | base64 -w 0)" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" qubes-pass.ManageKeys ;;
+
+    get-or-generate | get-or-gen) # get or create a security key
+
+        # validate request
         [ "$help" == "1" ] && usage
         disallow "0000000000"
-        [ -z "$key" ] fail "requires a key"
-        if [ -n "$3" ] ; then
-            echo "the $1 subcommand only accepts one argument; run with -h for more information" >&2 ; exit 64
-        fi
-        exec qubes-pass-client get-or-generate "$key" "$nosymbols" "$passphrase" "$otp"
-        ;;
+        [ -z "$key" ] && fail "requires a key"
+        [ -n "$new" ] && fail "does not accept a second key"
+
+        # encode parameters
+        args="$(echo "$cmd" | base64 -w 0) "
+        args+="$(echo "$key" | base64 -w 0) "
+        args+="$(echo "$nosymbols" | base64 -w 0) "
+        args+="$(echo "$phrase" | base64 -w 0) "
+        args+="$(echo "$otp" | base64 -w 0)"
+
+        # call action
+        echo -e "$args" | /usr/lib/qubes/qrexec-client-vm "$QUBES_PASS_DOMAIN" qubes-pass.ManageKeys ;;
 
     remove | rm)
         [ "$help" == "1" ] && usage
-        disallow ""
+        disallow "1101111101"
         if [ $hasoptions ] ; then
             echo "the $1 subcommand does not accept that option" >&2 ; exit 64
         fi
         if [ -z "$key1" ] ; then
             echo "the $1 subcommand requires a pass key" >&2 ; exit 64 
         fi
-        exec qubes-pass-client remove "$key"
-        ;;
+        exec qubes-pass-client remove "$key" ;;
 
     move | mv)
         [ "$help" == "1" ] && usage
-        disallow ""
-        if [ "$multiline$echo$nosymbols" != "000" ] ; then
-            echo "the $1 subcommand does not accept that option; run with -? for more information" >&2 ; exit 64
-        fi
-        if [ -z "$key" -o -z "$newkey" ] ; then
-            echo "the $1 subcommand requires two keys; run with -? for more information" >&2 ; exit 64
-        fi
-        exec qubes-pass-client move "$key" "$new" "$force"
-        ;;
+        disallow "1101111101"
+        [ -z "$key" -o -z "$newkey" ] && fail "requires two keys"
+        exec qubes-pass-client move "$key" "$new" "$force" ;;
 
     copy | cp)
         [ "$help" == "1" ] && usage
-        disallow ""
+        disallow "1101111101"
         [ -z "$key" -o -z "$new" ] && fail "requires source and target keys"
-        exec qubes-pass-client copy "$key" "$new" "$force"
-        ;;
+        exec qubes-pass-client copy "$key" "$new" "$force" ;;
 
     insert | ins)
         [ "$help" == "1" ] && usage
-        disallow ""
+        disallow "0000000000"
         shift
 
+        # get the key if it exists
         if [ "$force" != "1" ] ; then
-            ret=0 ; errs=$(qubes-pass-client get "$1" >/dev/null 2>&1) || ret=$?
+            ret=0 ; errs=$(qubes-pass-client get "$key" >/dev/null 2>&1) || ret=$?
             if [ "$ret" == "0" ] ; then
-                read -p "An entry already exists for $1. Overwrite it? [y/N] " rsp
+                read -p "An entry already exists for $key. Overwrite it? [y/N] " rsp
                 if [ "$rsp" != "y" ] ; then exit 0 ; fi
             elif [ "$ret" == "8" ] ; then
                 true
@@ -384,7 +391,6 @@ case "$cmd" in
             fi
         fi
 
-        contents=
         if [ "$multiline" == "1" ] ; then
             echo "Enter contents of $1 and press Ctrl+D when finished:"
             echo ""
@@ -402,14 +408,13 @@ case "$cmd" in
             fi
         fi
 
-        exec qubes-pass-client insert "$1" "$multiline" "$contents"
-        ;;
+        exec qubes-pass-client insert "$1" "$multiline" "$contents" ;;
 
+    # list entire or subdirectory
     list)
         [ "$help" == "1" ] && usage
         disallow "1111111111"
-        exec qubes-pass-client list "$key"
-        ;;
+        exec qubes-pass-client list "$key" ;;
 
     # get a security key
     *)
@@ -419,6 +424,5 @@ case "$cmd" in
         disallow "10111101010"
         [ -z "$key" ] && fail "requires a key"
 
-        exec qubes-pass-client get "$key" "$fill" "$show" "$otp" "$user"
-        ;;
+        exec qubes-pass-client get "$key" "$fill" "$show" "$otp" "$user" ;;
 esac
